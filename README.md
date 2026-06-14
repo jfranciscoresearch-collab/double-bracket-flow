@@ -88,13 +88,13 @@ double-bracket-flow/
 ## Figures
 
 ### Section 8: 2×2 Explicit Example
-![Section 8 Energy Decay](./figures/section8_2x2.png)
+![Section 8 Energy Decay](figures/section8_2x2.png)
 
 ### Random 4×4 Symmetric Matrices
-![Random 4x4 Results](./figures/random_nxn.png)
+![Random 4x4 Results](figures/random_nxn.png)
 
 ### Anisotropic Weighting (α ≠ β)
-![Anisotropic Convergence Rates](./figures/anisotropic.png)
+![Anisotropic Convergence Rates](figures/anisotropic.png)
 
 ---
 
@@ -147,17 +147,6 @@ If you use this code, please cite:
 
 ```bibtex
 @article{Francisco2026AOAD,
-<<<<<<< HEAD
-	author  = {Francisco, Jerina Jeneth C.},
-		title   = {Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
-								 Commutator Energy Dissipation, Algebraic Confinement,
-															and Asymptotic Alignment},
-																journal = {SIAM Journal on Matrix Analysis and Applications},
-																	year    = {2026},
-																		note    = {Submitted}
-																		}
-																		```
-=======
   author  = {Francisco, Jerina Jeneth C.},
   title   = {Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
              Commutator Energy Dissipation, Algebraic Confinement,
@@ -167,14 +156,10 @@ If you use this code, please cite:
   note    = {Submitted}
 }
 ```
->>>>>>> 87fc5aaa3d9a25556c5a75aaa2bc8b2eca15c91b
 
 ---
 
 ## License
 
 MIT License.
-<<<<<<< HEAD
 
-=======
->>>>>>> 87fc5aaa3d9a25556c5a75aaa2bc8b2eca15c91b
