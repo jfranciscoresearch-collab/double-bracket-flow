@@ -147,6 +147,7 @@ If you use this code, please cite:
 
 ```bibtex
 @article{Francisco2026AOAD,
+<<<<<<< HEAD
 	author  = {Francisco, Jerina Jeneth C.},
 		title   = {Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
 								 Commutator Energy Dissipation, Algebraic Confinement,
@@ -156,10 +157,24 @@ If you use this code, please cite:
 																		note    = {Submitted}
 																		}
 																		```
+=======
+  author  = {Francisco, Jerina Jeneth C.},
+  title   = {Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
+             Commutator Energy Dissipation, Algebraic Confinement,
+             and Asymptotic Alignment},
+  journal = {SIAM Journal on Matrix Analysis and Applications},
+  year    = {2026},
+  note    = {Submitted}
+}
+```
+>>>>>>> 87fc5aaa3d9a25556c5a75aaa2bc8b2eca15c91b
 
 ---
 
 ## License
 
 MIT License.
+<<<<<<< HEAD
 
+=======
+>>>>>>> 87fc5aaa3d9a25556c5a75aaa2bc8b2eca15c91b
