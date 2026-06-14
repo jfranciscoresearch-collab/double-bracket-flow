@@ -1,178 +1,115 @@
 """
-Example 3: Anisotropic (α,β) Parameter Sweep
-============================================
+example_anisotropic.py
+----------------------
+Demonstrates the effect of anisotropic weighting (alpha != beta)
+on convergence rate in the AOAD system.
 
-Runs the same initial data under multiple (α, β) anisotropy pairs
-and compares empirical decay rates to theoretical predictions from
-Lemma 6.1 (γ_min, the minimal spectral gap).
+The linearized theory (Lemma 6.1) predicts that the convergence rate
+near a regular commuting equilibrium is:
 
-This example validates the rate prediction for linearized dynamics
-and demonstrates how the anisotropy parameters modulate decay rates.
+    gamma_min = min_{i != j} [ alpha*(lambda_i - lambda_j)^2
+                              + beta*(mu_i - mu_j)^2 ]
+
+This example runs the same initial data under several (alpha, beta) pairs
+and compares empirical decay rates to the theoretical prediction.
 
 Reference:
-    Francisco, J.J.C. (2026). Lemma 6.1: Spectral Gap Analysis.
+    Jerina Jeneth C. Francisco
+    "Coupled Double-Bracket Gradient Flows on Adjoint Orbits" (2026)
 """
 
-import sys
-import os
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import sys, os
+from itertools import combinations
 
-# Ensure Python can find the aoad package
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from aoad import run_aoad
 
-import aoad
-from aoad.analysis import extract_asymptotic_spectral_gap
+# -----------------------------------------------------------------------
+# Initial conditions: small perturbation of a commuting equilibrium
+# -----------------------------------------------------------------------
+Lambda = np.diag([3.0, 1.0, -1.0, -3.0])
+M      = np.diag([2.0, 0.5, -0.5, -2.0])
 
+np.random.seed(7)
 
-def symmetric_random(n, seed=None):
-    """Generate a random symmetric matrix."""
-    if seed is not None:
-        np.random.seed(seed)
-    A = np.random.randn(n, n)
-    return 0.5 * (A + A.T)
+def small_perturbation(L, eps=0.05):
+    n = L.shape[0]
+    dS = np.random.randn(n, n) * eps
+    dS = 0.5 * (dS + dS.T)
+    return L + dS
 
+LG0 = small_perturbation(Lambda)
+LJ0 = small_perturbation(M)
 
-def extract_decay_rate(t, energies, start_frac=0.5):
-    """
-    Extract empirical decay rate from tail of energy trajectory.
-    Fits E(t) ≈ E₀ e^{-2γt} to the final portion of the data.
-    """
-    idx_start = int(len(t) * start_frac)
-    if idx_start >= len(t) - 1:
-        return None
+n = 4
 
-    t_tail = t[idx_start:]
-    E_tail = energies[idx_start:]
+# -----------------------------------------------------------------------
+# Theoretical gamma_min for given (alpha, beta)
+# -----------------------------------------------------------------------
+lam = np.diag(Lambda)
+mu  = np.diag(M)
 
-    # Remove near-zero values
-    valid = E_tail > 1e-15
-    if np.sum(valid) < 2:
-        return None
+def gamma_min_theory(alpha, beta):
+    gammas = []
+    for i, j in combinations(range(n), 2):
+        g = alpha * (lam[i] - lam[j])**2 + beta * (mu[i] - mu[j])**2
+        gammas.append(g)
+    return min(gammas)
 
-    t_tail = t_tail[valid]
-    E_tail = E_tail[valid]
+# -----------------------------------------------------------------------
+# Run for multiple (alpha, beta) pairs
+# -----------------------------------------------------------------------
+param_pairs = [
+    (1.0, 1.0),
+    (2.0, 1.0),
+    (1.0, 2.0),
+    (3.0, 0.5),
+]
 
-    # Linear fit to log energy: log(E) ≈ log(E₀) - 2γ*t
-    log_E = np.log(E_tail)
-    coeffs = np.polyfit(t_tail, log_E, 1)
-    decay_rate = -coeffs[0] / 2  # Recover γ from slope = -2γ
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
 
-    return max(decay_rate, 0)
+t_eval = np.linspace(0, 5, 800)
 
+print("=" * 60)
+print("Anisotropic weighting: predicted vs empirical gamma_min")
+print("=" * 60)
+print(f"{'(alpha, beta)':<18} {'Theory 2*gamma_min':>20} {'Empirical rate':>16}")
+print("-" * 60)
 
-def main():
-    """Run anisotropic sweep and compare to theory."""
-    print("=" * 80)
-    print("EXAMPLE 3: Anisotropic (α,β) Parameter Sweep and Rate Prediction")
-    print("=" * 80)
-    print()
+fig, ax = plt.subplots(figsize=(9, 6))
 
-    # Fixed initial condition
-    n = 3
-    LG0 = symmetric_random(n, seed=42)
-    LJ0 = symmetric_random(n, seed=100)
+for (alpha, beta), color in zip(param_pairs, colors):
+    _, t, _, _, E_t = run_aoad(
+        LG0.copy(), LJ0.copy(),
+        alpha=alpha, beta=beta,
+        t_span=(0, 5),
+        t_eval=t_eval
+    )
 
-    E0 = aoad.commutator_energy(LG0, LJ0)
-    print(f"Fixed initial condition: n = {n}")
-    print(f"Initial commutator energy: E₀ = {E0:.6e}")
-    print()
+    # Empirical rate from log-linear fit in late regime
+    mask = t > 2.0
+    log_E = np.log(E_t[mask] + 1e-30)
+    coeffs = np.polyfit(t[mask], log_E, 1)
+    emp_rate = -coeffs[0]
 
-    # Parameter sweep
-    alpha_vals = [0.5, 1.0, 1.5]
-    beta_vals = [0.5, 1.0, 1.5]
+    theory_rate = 2 * gamma_min_theory(alpha, beta)
+    label = f'α={alpha}, β={beta}  [pred={theory_rate:.1f}, emp={emp_rate:.1f}]'
 
-    print("Parameter Sweep Results")
-    print("-" * 80)
-    print(f"{'(α, β)':>12} | {'γ_min':>12} | {'Empirical γ':>14} | {'Ratio':>10} | "
-          f"{'Decay Rate':>14}")
-    print("-" * 80)
+    ax.semilogy(t, E_t, color=color, lw=2, label=label)
+    print(f"  ({alpha}, {beta}){'':10} {theory_rate:>20.4f} {emp_rate:>16.4f}")
 
-    results = {}
-    for alpha in alpha_vals:
-        for beta in beta_vals:
-            # Run simulation
-            result = aoad.run_aoad(
-                LG0, LJ0,
-                alpha=alpha,
-                beta=beta,
-                t_max=8.0,
-                num_points=400,
-            )
+print("=" * 60)
 
-            t = result['t']
-            energies = result['energy']
-            LG_traj = result['LG_traj']
-            LJ_traj = result['LJ_traj']
+ax.set_xlabel('Time $t$', fontsize=12)
+ax.set_ylabel(r'Commutator Energy $E(t)$', fontsize=12)
+ax.set_title('Effect of Anisotropic Weighting on Convergence Rate', fontsize=13)
+ax.legend(fontsize=9, loc='upper right')
+ax.grid(True, which='both', linestyle='--', alpha=0.5)
 
-            # Compute theoretical γ_min
-            try:
-                gamma_min = extract_asymptotic_spectral_gap(
-                    LG_traj[-1], LJ_traj[-1],
-                    alpha, beta
-                )
-            except Exception:
-                gamma_min = np.nan
-
-            # Extract empirical decay rate
-            empirical_gamma = extract_decay_rate(t, energies, start_frac=0.6)
-            if empirical_gamma is None:
-                empirical_gamma = np.nan
-
-            ratio = empirical_gamma / gamma_min if (not np.isnan(gamma_min) and not np.isnan(empirical_gamma)) else np.nan
-
-            # Final decay rate from slope
-            final_slope = extract_decay_rate(t, energies, start_frac=0.7)
-
-            results[(alpha, beta)] = {
-                't': t,
-                'energies': energies,
-                'gamma_min': gamma_min,
-                'empirical_gamma': empirical_gamma,
-            }
-
-            print(f"({alpha:.1f}, {beta:.1f})  | {gamma_min:12.6e} | {empirical_gamma:14.6e} | "
-                  f"{ratio:10.4f} | {final_slope:14.6e}")
-
-    print()
-
-    # Create comparison figure
-    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
-    axes = axes.flatten()
-
-    # Plot energies for different α, β pairs
-    plot_idx = 0
-    for i, alpha in enumerate([0.5, 1.5]):
-        for j, beta in enumerate([0.5, 1.5]):
-            ax = axes[i * 2 + j]
-            key = (alpha, beta)
-            t = results[key]['t']
-            energies = results[key]['energies']
-            gamma_min = results[key]['gamma_min']
-
-            # Empirical trajectory
-            ax.semilogy(t, energies, 'b-', linewidth=2.5, label='Empirical $E(t)$')
-
-            # Theoretical prediction from γ_min
-            if not np.isnan(gamma_min):
-                E_theory = energies[0] * np.exp(-2 * gamma_min * t)
-                ax.semilogy(t, E_theory, 'r--', linewidth=2, label=f'Theory: $e^{{-2\\gamma_{{min}}t}}$')
-
-            ax.set_xlabel('Time ($t$)', fontsize=11)
-            ax.set_ylabel('Energy $E(t)$', fontsize=11)
-            ax.set_title(f'$(\\alpha, \\beta) = ({alpha}, {beta})$, $\\gamma_{{min}} = {gamma_min:.4e}$',
-                        fontsize=11, fontweight='bold')
-            ax.grid(True, which='both', linestyle='--', alpha=0.6)
-            ax.legend(fontsize=10, loc='best')
-
-    plt.tight_layout()
-    plt.savefig('example_anisotropic.png', dpi=150, bbox_inches='tight')
-    print(f"Figure saved: example_anisotropic.png")
-    print("=" * 80)
-
-
-if __name__ == '__main__':
-    main()
+plt.tight_layout()
+os.makedirs('figures', exist_ok=True)
+plt.savefig('figures/anisotropic.png', dpi=150, bbox_inches='tight')
+print("\nFigure saved to figures/anisotropic.png")
+plt.show()
