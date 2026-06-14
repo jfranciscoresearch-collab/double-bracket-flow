@@ -1,221 +1,137 @@
 """
-AOAD (Anisotropic Orbit Adjoint Dynamics) Simulator
-=====================================================
+aoad.py
+-------
+Main simulator for the Anisotropic Adjoint Orbit Alignment Dynamics (AOAD) system:
 
-Main simulator for the coupled double-bracket flow system:
-
-    dL_G/dt = -α [L_G, [L_G, L_J]]
-    dL_J/dt = -β [L_J, [L_J, L_G]]
-
-Provides high-level functions:
-  - run_aoad()              : Run the AOAD simulation
-  - commutator_energy()     : Compute Frobenius norm of commutator
-  - verify_isospectrality() : Verify spectral properties and dissipation
+    L_G' = -alpha * [L_G, [L_G, L_J]]
+    L_J' = -beta  * [L_J, [L_J, L_G]]
 
 Reference:
-    Francisco, J.J.C. (2026). Anisotropic Orbit Adjoint Dynamics.
-
-Requirements:
-    numpy, scipy
-    Install via: pip install numpy scipy matplotlib
+    Jerina Jeneth C. Francisco
+    "Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
+     Commutator Energy Dissipation, Algebraic Confinement,
+     and Asymptotic Alignment" (2026)
+    Submitted to SIAM Journal on Matrix Analysis and Applications
 """
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from aoad.dynamics import aoad_vector_field, compute_commutator_energy
-from aoad.analysis import extract_asymptotic_spectral_gap
 
 
-__all__ = [
-    'run_aoad',
-    'commutator_energy',
-    'verify_isospectrality',
-]
+def commutator(A, B):
+    """Return [A, B] = AB - BA."""
+    return A @ B - B @ A
 
 
-def run_aoad(
-    LG0: np.ndarray,
-    LJ0: np.ndarray,
-    alpha: float = 1.0,
-    beta: float = 1.0,
-    t_max: float = 20.0,
-    max_step: float = 0.01,
-    rtol: float = 1e-9,
-    atol: float = 1e-12,
-    num_points: int = None,
-) -> dict:
+def double_bracket(L, N):
+    """Return [L, [L, N]]."""
+    return commutator(L, commutator(L, N))
+
+
+def commutator_energy(LG, LJ):
+    """Return E = 0.5 * ||[L_G, L_J]||_F^2."""
+    C = commutator(LG, LJ)
+    return 0.5 * np.linalg.norm(C, 'fro') ** 2
+
+
+def aoad_rhs(t, y, n, alpha, beta):
     """
-    Run the anisotropic orbit adjoint dynamics (AOAD) simulation.
+    Right-hand side of the AOAD system, flattened for scipy.integrate.
 
     Parameters
     ----------
-    LG0 : np.ndarray
-        Initial condition for L_G (n × n symmetric matrix).
-    LJ0 : np.ndarray
-        Initial condition for L_J (n × n symmetric matrix).
-    alpha : float
-        Anisotropy parameter for L_G dynamics. Default: 1.0.
-    beta : float
-        Anisotropy parameter for L_J dynamics. Default: 1.0.
-    t_max : float
-        Final integration time. Default: 20.0.
-    max_step : float
-        Maximum step size for ODE solver. Default: 0.01.
-    rtol : float
-        Relative tolerance for ODE solver. Default: 1e-9.
-    atol : float
-        Absolute tolerance for ODE solver. Default: 1e-12.
-    num_points : int, optional
-        Number of evaluation points. If None, use adaptive stepping.
+    t     : float         current time (unused; autonomous system)
+    y     : (2*n*n,)      flattened [L_G, L_J]
+    n     : int           matrix dimension
+    alpha : float         weight for L_G equation
+    beta  : float         weight for L_J equation
 
     Returns
     -------
-    dict
-        Dictionary containing:
-          - 't'       : Time array
-          - 'LG_traj' : Trajectory of L_G (N, n, n)
-          - 'LJ_traj' : Trajectory of L_J (N, n, n)
-          - 'energy'  : Commutator energy over time (N,)
+    dy : (2*n*n,) flattened time derivatives
     """
+    LG = y[:n*n].reshape(n, n)
+    LJ = y[n*n:].reshape(n, n)
+
+    dLG = -alpha * double_bracket(LG, LJ)
+    dLJ = -beta  * double_bracket(LJ, LG)
+
+    return np.concatenate([dLG.ravel(), dLJ.ravel()])
+
+
+def run_aoad(LG0, LJ0, alpha=1.0, beta=1.0, t_span=(0, 15), t_eval=None,
+             rtol=1e-9, atol=1e-11):
+    """
+    Integrate the AOAD system from initial conditions (LG0, LJ0).
+
+    Parameters
+    ----------
+    LG0    : (n, n) real symmetric matrix
+    LJ0    : (n, n) real symmetric matrix
+    alpha  : float, weight for L_G equation (default 1.0)
+    beta   : float, weight for L_J equation (default 1.0)
+    t_span : (t0, tf) integration interval
+    t_eval : array of times at which to store solution (optional)
+    rtol   : relative tolerance for ODE solver
+    atol   : absolute tolerance for ODE solver
+
+    Returns
+    -------
+    sol    : OdeSolution object from scipy
+    t      : (N,) time array
+    LG_t   : (N, n, n) array of L_G matrices along the trajectory
+    LJ_t   : (N, n, n) array of L_J matrices along the trajectory
+    E_t    : (N,) commutator energy along the trajectory
+    """
+    assert LG0.shape == LJ0.shape, "LG0 and LJ0 must have the same shape."
     n = LG0.shape[0]
-    if LG0.shape != (n, n) or LJ0.shape != (n, n):
-        raise ValueError("LG0 and LJ0 must be square matrices of the same shape")
 
-    y0 = np.concatenate([LG0.flatten(), LJ0.flatten()])
+    if t_eval is None:
+        t_eval = np.linspace(t_span[0], t_span[1], 500)
 
-    t_eval = None
-    if num_points is not None:
-        t_eval = np.linspace(0, t_max, num_points)
+    y0 = np.concatenate([LG0.ravel(), LJ0.ravel()])
 
     sol = solve_ivp(
-        aoad_vector_field,
-        [0, t_max],
+        aoad_rhs,
+        t_span,
         y0,
         args=(n, alpha, beta),
+        t_eval=t_eval,
         method='RK45',
-        max_step=max_step,
         rtol=rtol,
         atol=atol,
-        t_eval=t_eval,
+        dense_output=False
     )
 
-    LG_traj = sol.y[:n*n].T.reshape(-1, n, n)
-    LJ_traj = sol.y[n*n:].T.reshape(-1, n, n)
+    t = sol.t
+    LG_t = sol.y[:n*n, :].T.reshape(-1, n, n)
+    LJ_t = sol.y[n*n:, :].T.reshape(-1, n, n)
+    E_t  = np.array([commutator_energy(LG_t[i], LJ_t[i]) for i in range(len(t))])
 
-    energies = np.array([
-        commutator_energy(LG_traj[i], LJ_traj[i])
-        for i in range(len(sol.t))
-    ])
-
-    return {
-        't': sol.t,
-        'LG_traj': LG_traj,
-        'LJ_traj': LJ_traj,
-        'energy': energies,
-    }
+    return sol, t, LG_t, LJ_t, E_t
 
 
-def commutator_energy(LG: np.ndarray, LJ: np.ndarray) -> float:
+def verify_isospectrality(LG0, LG_t, LJ0, LJ_t, tol=1e-6):
     """
-    Compute the commutator energy: 0.5 * ||[L_G, L_J]||_F^2.
+    Check that eigenvalues of L_G and L_J are preserved along the trajectory.
 
-    Parameters
-    ----------
-    LG : np.ndarray
-        Operator L_G (n × n).
-    LJ : np.ndarray
-        Operator L_J (n × n).
-
-    Returns
-    -------
-    float
-        Frobenius norm squared of the commutator, scaled by 0.5.
+    Returns True if max deviation is below tol, prints a summary.
     """
-    return compute_commutator_energy(LG, LJ)
+    eig_G0 = np.sort(np.linalg.eigvalsh(LG0))
+    eig_J0 = np.sort(np.linalg.eigvalsh(LJ0))
 
+    max_dev_G = max(
+        np.max(np.abs(np.sort(np.linalg.eigvalsh(LG_t[i])) - eig_G0))
+        for i in range(len(LG_t))
+    )
+    max_dev_J = max(
+        np.max(np.abs(np.sort(np.linalg.eigvalsh(LJ_t[i])) - eig_J0))
+        for i in range(len(LJ_t))
+    )
 
-def verify_isospectrality(
-    LG_traj: np.ndarray,
-    LJ_traj: np.ndarray,
-    alpha: float = 1.0,
-    beta: float = 1.0,
-    tolerance: float = 1e-6,
-) -> dict:
-    """
-    Verify isospectrality, monotone dissipation, and convergence properties.
-
-    Parameters
-    ----------
-    LG_traj : np.ndarray
-        Trajectory of L_G (N, n, n).
-    LJ_traj : np.ndarray
-        Trajectory of L_J (N, n, n).
-    alpha : float
-        Anisotropy parameter for L_G. Default: 1.0.
-    beta : float
-        Anisotropy parameter for L_J. Default: 1.0.
-    tolerance : float
-        Tolerance for near-commutativity check. Default: 1e-6.
-
-    Returns
-    -------
-    dict
-        Dictionary containing verification results:
-          - 'is_monotone_dissipation' : bool, energy monotone decreasing
-          - 'is_nearly_commuting'     : bool, final commutator small
-          - 'energy_decrease'         : float, total energy decrease
-          - 'final_commutator_norm'   : float, ||[L_G, L_J]|| at final time
-          - 'gamma_min'               : float, minimal spectral gap (if available)
-          - 'convergence_rate'        : float, asymptotic decay rate estimate
-    """
-    n = LG_traj.shape[1]
-    N = LG_traj.shape[0]
-
-    # Compute energy trajectory
-    energies = np.array([
-        commutator_energy(LG_traj[i], LJ_traj[i])
-        for i in range(N)
-    ])
-
-    # Check monotone dissipation
-    energy_diffs = np.diff(energies)
-    is_monotone = np.all(energy_diffs <= tolerance)
-
-    # Check near-commutativity at final time
-    def comm(A, B):
-        return A @ B - B @ A
-
-    final_comm = comm(LG_traj[-1], LJ_traj[-1])
-    final_comm_norm = np.linalg.norm(final_comm, 'fro')
-    is_nearly_commuting = final_comm_norm < tolerance
-
-    # Energy decrease
-    energy_decrease = energies[0] - energies[-1]
-
-    # Compute gamma_min for asymptotic rate
-    gamma_min = None
-    try:
-        gamma_min = extract_asymptotic_spectral_gap(
-            LG_traj[-1],
-            LJ_traj[-1],
-            alpha,
-            beta,
-        )
-    except Exception:
-        gamma_min = None
-
-    # Estimate convergence rate from final energies
-    convergence_rate = None
-    if N > 1 and energies[-1] > 1e-10 and energies[-2] > 1e-10:
-        # Approximate exponential decay rate
-        rate = -np.log(energies[-1] / energies[-2])
-        convergence_rate = rate
-
-    return {
-        'is_monotone_dissipation': bool(is_monotone),
-        'is_nearly_commuting': bool(is_nearly_commuting),
-        'energy_decrease': float(energy_decrease),
-        'final_commutator_norm': float(final_comm_norm),
-        'gamma_min': float(gamma_min) if gamma_min is not None else None,
-        'convergence_rate': convergence_rate,
-    }
+    print(f"Isospectrality check:")
+    print(f"  max eigenvalue deviation L_G: {max_dev_G:.2e}")
+    print(f"  max eigenvalue deviation L_J: {max_dev_J:.2e}")
+    passed = (max_dev_G < tol) and (max_dev_J < tol)
+    print(f"  {'PASSED' if passed else 'FAILED'} (tolerance {tol:.0e})")
+    return passed
