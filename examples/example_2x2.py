@@ -1,131 +1,127 @@
 """
-Example 1: Section 8 Artifact (2×2 System)
-===========================================
+example_2x2.py
+--------------
+Reproduces the explicit 2x2 example from Section 8 of:
 
-Reproduces the explicit solution for the 2×2 case with:
-  - b(t) = b₀ e^{-4t}    (off-diagonal element)
-  - E(t) = 4b₀² e^{-8t}  (commutator energy)
+    Jerina Jeneth C. Francisco
+    "Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
+     Commutator Energy Dissipation, Algebraic Confinement,
+     and Asymptotic Alignment" (2026)
 
-This example demonstrates exact agreement between the empirical trajectory
-and the predicted theoretical rates, providing a clean validation of the
-AOAD dynamics for the simplest nontrivial case.
+System:
+    L_G = diag(1, -1),   L_J = [[a, b], [b, -a]]
 
-Reference:
-    Francisco, J.J.C. (2026). Section 8: Explicit 2×2 Verification.
+Theory predicts (alpha = beta = 1):
+    b(t) = b0 * exp(-4t)
+    E(t) = 4 * b0^2 * exp(-8t)
+
+with gamma_min = 4, so E(t) <= K * exp(-2 * gamma_min * t) = K * exp(-8t).
+
+This script:
+1. Integrates the AOAD system numerically.
+2. Plots E(t) against the theoretical prediction.
+3. Verifies isospectrality.
+4. Prints the empirical vs predicted decay rate.
 """
 
+import numpy as np
+import matplotlib.pyplot as plt
 import sys
 import os
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
-# Ensure Python can find the aoad package
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from aoad import run_aoad, verify_isospectrality
 
-import aoad
+# -----------------------------------------------------------------------
+# Initial conditions (Section 8)
+# -----------------------------------------------------------------------
+a0 = 0.0
+b0 = 1.0          # perturbation magnitude; theory predicts b(t) = b0 exp(-4t)
 
+LG0 = np.array([[1.0,  0.0],
+                [0.0, -1.0]])
 
-def main():
-    """Run 2×2 example and verify predicted rates."""
-    # Initial conditions: canonical 2×2 from Section 7
-    LG0 = np.array([[1.0, 0.0], [0.0, -1.0]])
-    LJ0 = np.array([[0.0, 1.0], [1.0, 0.0]])
+LJ0 = np.array([[a0,  b0],
+                [b0, -a0]])
 
-    b0 = LJ0[0, 1]  # Initial off-diagonal element
-    E0 = aoad.commutator_energy(LG0, LJ0)
+alpha = 1.0
+beta  = 1.0
 
-    print("=" * 70)
-    print("EXAMPLE 1: Section 8 Artifact (2×2 System)")
-    print("=" * 70)
-    print(f"Initial off-diagonal element: b₀ = {b0:.6f}")
-    print(f"Initial commutator energy: E₀ = {E0:.6f}")
-    print(f"Predicted: E(t) = 4b₀² e^{{-8t}} = {4 * b0**2:.6f} e^{{-8t}}")
-    print()
+# -----------------------------------------------------------------------
+# Integrate
+# -----------------------------------------------------------------------
+t_span = (0, 3.0)
+t_eval = np.linspace(0, 3.0, 1000)
 
-    # Run simulation with α = β = 1 for the canonical case
-    result = aoad.run_aoad(
-        LG0, LJ0,
-        alpha=1.0,
-        beta=1.0,
-        t_max=5.0,
-        num_points=500,
-    )
+sol, t, LG_t, LJ_t, E_t = run_aoad(
+    LG0, LJ0,
+    alpha=alpha, beta=beta,
+    t_span=t_span,
+    t_eval=t_eval
+)
 
-    t = result['t']
-    energies = result['energy']
-    LG_traj = result['LG_traj']
-    LJ_traj = result['LJ_traj']
+# -----------------------------------------------------------------------
+# Theoretical prediction
+# -----------------------------------------------------------------------
+gamma_min  = alpha * (1 - (-1))**2 + beta * 0**2   # = 4
+E0_theory  = 4 * b0**2                              # = 4
+E_theory   = E0_theory * np.exp(-2 * gamma_min * t) # = 4 exp(-8t)
+b_theory   = b0 * np.exp(-4 * t)
 
-    # Extract off-diagonal elements b(t) from LJ
-    b_traj = np.array([LJ_traj[i, 0, 1] for i in range(len(t))])
+# -----------------------------------------------------------------------
+# Isospectrality check
+# -----------------------------------------------------------------------
+print("=" * 55)
+print("Section 8: Explicit 2x2 AOAD Example")
+print("=" * 55)
+verify_isospectrality(LG0, LG_t, LJ0, LJ_t)
 
-    # Theoretical predictions
-    b_theory = b0 * np.exp(-4.0 * t)
-    E_theory = 4.0 * b0**2 * np.exp(-8.0 * t)
+# -----------------------------------------------------------------------
+# Empirical decay rate (late-time log-linear fit)
+# -----------------------------------------------------------------------
+mask = t > 1.0
+log_E = np.log(E_t[mask] + 1e-30)
+coeffs = np.polyfit(t[mask], log_E, 1)
+empirical_rate = -coeffs[0]
+print(f"\nDecay rate verification:")
+print(f"  Predicted  2*gamma_min = {2*gamma_min:.4f}")
+print(f"  Empirical  rate        = {empirical_rate:.4f}")
+print(f"  Relative error         = {abs(empirical_rate - 2*gamma_min)/(2*gamma_min)*100:.4f}%")
 
-    # Compute errors
-    b_error = np.abs(b_traj - b_theory)
-    E_error = np.abs(energies - E_theory)
+# -----------------------------------------------------------------------
+# Plot
+# -----------------------------------------------------------------------
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    print("Empirical vs Predicted Decay Rates")
-    print("-" * 70)
-    print(f"{'Time':>8} | {'b(t) Empirical':>14} | {'b(t) Theory':>14} | {'Error':>12}")
-    print("-" * 70)
-    for i in [0, len(t)//4, len(t)//2, 3*len(t)//4, -1]:
-        print(f"{t[i]:8.3f} | {b_traj[i]:14.6e} | {b_theory[i]:14.6e} | {b_error[i]:12.2e}")
+# Left: E(t) log scale with theoretical overlay
+ax = axes[0]
+ax.semilogy(t, E_t,      color='#2ca02c', lw=2,   label=r'Numerical $E(t)$')
+ax.semilogy(t, E_theory, color='black',   lw=1.5,
+            linestyle='--', label=r'Theory: $4b_0^2 e^{-8t}$')
+ax.set_xlabel('Time $t$', fontsize=12)
+ax.set_ylabel(r'Commutator Energy $E(t)$', fontsize=12)
+ax.set_title('Section 8: Energy Decay (log scale)', fontsize=13)
+ax.legend(fontsize=11)
+ax.grid(True, which='both', linestyle='--', alpha=0.5)
+ax.text(0.05, 0.08,
+        r'$\gamma_{\min}=4$, predicted rate $e^{-8t}$',
+        transform=ax.transAxes, fontsize=10,
+        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-    print()
-    print(f"{'Time':>8} | {'E(t) Empirical':>14} | {'E(t) Theory':>14} | {'Error':>12}")
-    print("-" * 70)
-    for i in [0, len(t)//4, len(t)//2, 3*len(t)//4, -1]:
-        print(f"{t[i]:8.3f} | {energies[i]:14.6e} | {E_theory[i]:14.6e} | {E_error[i]:12.2e}")
+# Right: b(t) comparison
+b_t = np.array([LJ_t[i, 0, 1] for i in range(len(t))])
+ax2 = axes[1]
+ax2.plot(t, b_t,      color='#1f77b4', lw=2,   label=r'Numerical $b(t)$')
+ax2.plot(t, b_theory, color='black',   lw=1.5,
+         linestyle='--', label=r'Theory: $b_0 e^{-4t}$')
+ax2.set_xlabel('Time $t$', fontsize=12)
+ax2.set_ylabel(r'Off-diagonal entry $b(t)$', fontsize=12)
+ax2.set_title(r'Off-diagonal decay: $b(t) = b_0 e^{-4t}$', fontsize=13)
+ax2.legend(fontsize=11)
+ax2.grid(True, linestyle='--', alpha=0.5)
 
-    print()
-    print(f"Max relative error in b(t):  {np.max(b_error / (np.abs(b_theory) + 1e-15)):.2e}")
-    print(f"Max relative error in E(t):  {np.max(E_error / (np.abs(E_theory) + 1e-15)):.2e}")
-    print()
-
-    # Verify isospectrality
-    verify_result = aoad.verify_isospectrality(
-        LG_traj, LJ_traj,
-        alpha=1.0, beta=1.0,
-    )
-
-    print("Verification Results")
-    print("-" * 70)
-    print(f"Monotone dissipation:        {verify_result['is_monotone_dissipation']}")
-    print(f"Nearly commuting (final):    {verify_result['is_nearly_commuting']}")
-    print(f"Total energy decrease:       {verify_result['energy_decrease']:.6e}")
-    print(f"Final commutator norm:       {verify_result['final_commutator_norm']:.6e}")
-    print()
-
-    # Create figure
-    fig, axes = plt.subplots(2, 1, figsize=(10, 7))
-
-    # Plot b(t)
-    axes[0].semilogy(t, np.abs(b_traj), 'b-', linewidth=2.0, label='Empirical $b(t)$')
-    axes[0].semilogy(t, np.abs(b_theory), 'r--', linewidth=1.5, label='Theory: $b_0 e^{-4t}$')
-    axes[0].set_ylabel('$|b(t)|$', fontsize=12)
-    axes[0].set_title('Section 8 Artifact: 2×2 Canonical Example', fontsize=13, fontweight='bold')
-    axes[0].grid(True, which='both', linestyle='--', alpha=0.6)
-    axes[0].legend(fontsize=11)
-
-    # Plot E(t)
-    axes[1].semilogy(t, energies, 'g-', linewidth=2.0, label='Empirical $E(t)$')
-    axes[1].semilogy(t, E_theory, 'r--', linewidth=1.5, label='Theory: $4b_0^2 e^{-8t}$')
-    axes[1].set_xlabel('Time ($t$)', fontsize=12)
-    axes[1].set_ylabel('Commutator Energy $E(t)$', fontsize=12)
-    axes[1].grid(True, which='both', linestyle='--', alpha=0.6)
-    axes[1].legend(fontsize=11)
-
-    plt.tight_layout()
-    plt.savefig('example_2x2.png', dpi=150, bbox_inches='tight')
-    print(f"Figure saved: example_2x2.png")
-    print("=" * 70)
-
-
-if __name__ == '__main__':
-    main()
+plt.tight_layout()
+os.makedirs('figures', exist_ok=True)
+plt.savefig('figures/section8_2x2.png', dpi=150, bbox_inches='tight')
+print("\nFigure saved to figures/section8_2x2.png")
+plt.show()
