@@ -106,14 +106,7 @@ double-bracket-flow/
 
 ## Figures
 
-### Section 9: 2×2 Explicit Example
-![Section 9 Energy Decay](figures/section8_2x2.png)
 
-### Random 4×4 Symmetric Matrices
-![Random 4x4 Results](figures/random_nxn.png)
-
-### Anisotropic Weighting (α ≠ β)
-![Anisotropic Convergence Rates](figures/anisotropic.png)
 
 ---
 
