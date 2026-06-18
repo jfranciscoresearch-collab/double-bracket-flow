@@ -92,9 +92,9 @@ double-bracket-flow/
 │   └── plot2_local_rates.py       # Local rate verification (Theorem 8.2)
 │
 ├── figures/                       # Pre-generated figures
-│   ├── section8_2x2.png           # Section 9 energy decay and isospectrality
-│   ├── random_nxn.png             # Random 4×4 experiment
-│   └── anisotropic.png            # Anisotropic weighting comparison
+│   ├── section8_2x2-2.png         # Section 9 energy decay and isospectrality
+│   ├── random_nxn-2.png           # Random 4×4 experiment
+│   └── anisotropic-2.png          # Anisotropic weighting comparison
 │
 ├── aoad.py                        # Standalone simulator (compatibility)
 ├── double_bracket_flow.py         # Companion: Lie confinement paper
@@ -107,13 +107,13 @@ double-bracket-flow/
 ## Figures
 
 ### Section 9: 2×2 Explicit Example
-![Section 9 Energy Decay](https://raw.githubusercontent.com/jfranciscoresearch-collab/double-bracket-flow/main/figures/section8_2x2.png)
+![Section 9 Energy Decay](https://raw.githubusercontent.com/jfranciscoresearch-collab/double-bracket-flow/main/figures/section8_2x2-2.png)
 
 ### Random 4×4 Symmetric Matrices
-![Random 4x4 Results](https://raw.githubusercontent.com/jfranciscoresearch-collab/double-bracket-flow/main/figures/random_nxn.png)
+![Random 4x4 Results](https://raw.githubusercontent.com/jfranciscoresearch-collab/double-bracket-flow/main/figures/random_nxn-2.png)
 
 ### Anisotropic Weighting (α ≠ β)
-![Anisotropic Convergence Rates](https://raw.githubusercontent.com/jfranciscoresearch-collab/double-bracket-flow/main/figures/anisotropic.png)
+![Anisotropic Convergence Rates](https://raw.githubusercontent.com/jfranciscoresearch-collab/double-bracket-flow/main/figures/anisotropic-2.png)
 
 ---
 
