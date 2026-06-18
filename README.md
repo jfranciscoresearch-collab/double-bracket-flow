@@ -158,7 +158,7 @@ code for the companion work:
 
 > Jerina Jeneth C. Francisco  
 > **Invariant Lie Algebra Confinement in a Symmetric Double-Bracket Flow** (2026)  
-> DOI: [10.5281/zenodo.20325811](https://doi.org/10.5281/zenodo.20325811)
+> DOI: [10.5281/zenodo.20325811](https://zenodo.org/records/20325811)
 
 The companion paper studies the confinement phenomenon for the unweighted
 system (α = β = 1). The AOAD paper extends this framework to anisotropic
