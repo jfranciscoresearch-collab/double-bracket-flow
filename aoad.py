@@ -9,9 +9,14 @@ Main simulator for the Anisotropic Adjoint Orbit Alignment Dynamics (AOAD) syste
 Reference:
     Jerina Jeneth C. Francisco
     "Coupled Double-Bracket Gradient Flows on Adjoint Orbits:
-     Commutator Energy Dissipation, Algebraic Confinement,
-     and Asymptotic Alignment" (2026)
-    Submitted to SIAM Journal on Matrix Analysis and Applications
+     Commutator Energy, Alignment Dissipation, and Asymptotic
+     Confinement" (corrected version)
+
+Note: the title above reflects the corrected manuscript. The original
+title referenced "Commutator Energy Dissipation," which was found to be
+an incorrect claim (see aoad/lyapunov.py and the corrected manuscript,
+Section 4): the commutator energy E is not monotone; the corrected,
+monotone Lyapunov function is the alignment W = <L_G, L_J>.
 """
 
 import numpy as np
